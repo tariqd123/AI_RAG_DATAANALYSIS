@@ -69,6 +69,10 @@ Create `.env.local` in the project root:
 
 ```env
 ANTHROPIC_API_KEY=your_key_here
+
+# Access control: the app is locked behind a single shared password.
+APP_PASSWORD=your_app_password
+AUTH_SECRET=a_long_random_string   # used to sign the session cookie
 ```
 
 Optional: set log verbosity for the server console.
@@ -76,6 +80,10 @@ Optional: set log verbosity for the server console.
 ```env
 LOG_LEVEL=debug   # debug | info | warn | error | silent (default: info)
 ```
+
+> The whole app is password-protected. Visitors are redirected to `/login`;
+> entering `APP_PASSWORD` sets a signed, HTTP-only session cookie valid for
+> 24 hours. Use "Log out" in the menu bar to clear it.
 
 ### 4. Run
 
@@ -102,12 +110,18 @@ Open [http://localhost:3000](http://localhost:3000).
 | Path                     | Purpose                                            |
 | ------------------------ | -------------------------------------------------- |
 | `/`                      | Landing page linking both tools                    |
+| `/login`                 | Password login (public)                            |
 | `/excel`                 | Excel analysis UI                                  |
 | `/screenshot`            | Screenshot analysis UI                             |
+| `/api/auth/login`        | Set session cookie on correct password             |
+| `/api/auth/logout`       | Clear the session cookie                           |
 | `/api/upload`            | Parse + profile an Excel workbook, store dataset   |
 | `/api/chat`              | Excel analyst agent (streaming)                    |
 | `/api/screenshot`        | OCR → structure → profile → store screenshots      |
 | `/api/screenshot-chat`   | Screenshot analyst agent (streaming)               |
+
+All routes except `/login` and `/api/auth/*` require a valid session (enforced
+by `proxy.ts`).
 
 ## Project structure
 

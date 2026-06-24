@@ -251,3 +251,21 @@ permissions, so review before executing anything they instruct.
   Screenshot at `/screenshot`. Shared `app/components/MenuBar.tsx` rendered in
   `app/layout.tsx`; layout is `h-dvh` flex column (menu bar + `flex-1 min-h-0`
   page area). Tool pages use `h-full` (not `h-dvh`) so they fit under the menu bar.
+
+### Authentication — single shared password (v1)
+
+- **Whole app is locked** behind one password (`APP_PASSWORD` in `.env.local`),
+  signed session cookie valid 24h. No DB, no per-user accounts.
+- **`lib/auth.ts`** signs/verifies an HMAC token (`<expiryMs>.<b64url-hmac>`)
+  using `AUTH_SECRET` via **Web Crypto** (`crypto.subtle`) so it runs in BOTH the
+  Edge proxy and Node routes. Cookie `app_session`, httpOnly, sameSite=lax,
+  secure in prod.
+- **`proxy.ts`** (NOTE: this Next 16 version renamed Middleware → **Proxy**; file
+  is `proxy.ts` at project root, exports a `proxy` function + `config.matcher`).
+  Guards everything except `/login`, `/api/auth/*`, and static assets. Unauthed
+  page → 307 redirect to `/login?from=…`; unauthed `/api/*` → 401.
+- **Routes:** `app/api/auth/login/route.ts` (checks password, sets cookie),
+  `app/api/auth/logout/route.ts` (clears it). Login UI `app/login/page.tsx`;
+  "Log out" button in `MenuBar` (hidden on `/login`).
+- **Env:** `APP_PASSWORD` + `AUTH_SECRET` in `.env.local` (and `.env`), gitignored.
+  Default dev password was a placeholder — change it for real use.

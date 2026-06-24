@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const LINKS = [
   { href: "/", label: "Home" },
@@ -11,9 +11,19 @@ const LINKS = [
 
 export function MenuBar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  // The menu bar is irrelevant on the login screen.
+  if (pathname === "/login") return null;
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.replace("/login");
+    router.refresh();
+  }
 
   return (
     <header className="sticky top-0 z-20 shrink-0 border-b border-line bg-paper/90 backdrop-blur">
@@ -43,6 +53,13 @@ export function MenuBar() {
             );
           })}
         </ul>
+        <button
+          type="button"
+          onClick={logout}
+          className="ml-auto whitespace-nowrap rounded-md px-2.5 py-1 text-sm text-muted transition-colors hover:bg-card hover:text-ink"
+        >
+          Log out
+        </button>
       </nav>
     </header>
   );
