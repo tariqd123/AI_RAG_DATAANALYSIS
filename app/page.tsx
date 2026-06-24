@@ -28,8 +28,8 @@ export default function Home() {
           href="/screenshot"
           eyebrow="Images & Dashboards"
           title="Screenshot Analysis"
-          body="Upload screenshots of dashboards, reports, tables, or charts. OCR extracts the data, then AI structures it for natural-language querying."
-          points={["OCR text & table extraction", "Chart & KPI interpretation", "Direct answers + actions"]}
+          body="Upload screenshots of dashboards, reports, tables, or charts. AI reads the data and structures it for natural-language querying."
+          points={["Text & table extraction", "Chart & KPI interpretation", "Direct answers + actions"]}
         />
       </div>
     </div>

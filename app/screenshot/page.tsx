@@ -59,7 +59,7 @@ export default function ScreenshotAnalysisPage() {
         throw new Error(
           res.ok
             ? "The server returned an unexpected response. Please try again."
-            : `Screenshot processing failed (HTTP ${res.status}). This often happens when OCR times out on the server — try a smaller or sharper image.`,
+            : `Screenshot processing failed (HTTP ${res.status}). Please try again, or use a smaller/sharper image.`,
         );
       }
       if (!res.ok) throw new Error(json.error ?? "Upload failed.");
@@ -98,7 +98,7 @@ export default function ScreenshotAnalysisPage() {
               Turn screenshots into answers.
             </h1>
             <p className="mt-1 text-sm text-muted">
-              OCR reads your dashboards and tables; AI structures them for questions.
+              AI reads your dashboards and tables and structures them for questions.
             </p>
           </header>
 
@@ -215,7 +215,7 @@ function UploadZone({
       }`}
     >
       <span className="font-mono text-[0.7rem] uppercase tracking-[0.15em] text-muted">
-        {uploading ? "Reading (OCR)…" : count > 0 ? `${count} loaded` : "Upload"}
+        {uploading ? "Reading…" : count > 0 ? `${count} loaded` : "Upload"}
       </span>
       <span className="text-sm font-medium text-ink">
         Drop screenshots (PNG/JPG, up to 6) or click
@@ -233,7 +233,7 @@ function ExtractionSummary({
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-line bg-card p-3">
-      {/* Per-image OCR confidence */}
+      {/* Per-image read confidence */}
       <div>
         <p className="font-mono text-[0.7rem] uppercase tracking-[0.15em] text-muted">Screenshots</p>
         <div className="mt-1 flex flex-col gap-1">
@@ -247,7 +247,7 @@ function ExtractionSummary({
                   img.ocrConfidence >= 70 ? "text-accent" : "text-signal"
                 }`}
               >
-                OCR {img.ocrConfidence}%
+                read {img.ocrConfidence}%
               </span>
             </div>
           ))}
@@ -323,7 +323,7 @@ function EmptyState({
     <div className="flex h-full flex-col items-start justify-center gap-4 py-10">
       <p className="text-base text-muted">
         {uploading
-          ? "Running OCR and extracting data… (first run downloads OCR data, please wait)"
+          ? "Reading your screenshots and extracting data…"
           : ready
             ? "Your screenshots are extracted. Try one of these:"
             : "Upload screenshots of dashboards, reports, or tables to start."}

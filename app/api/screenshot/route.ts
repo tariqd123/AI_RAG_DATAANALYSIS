@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { ocrImages } from "@/lib/ocr/ocr";
-import { extractStructuredData } from "@/lib/ocr/extract";
+import { extractStructuredData, type ScreenshotImage } from "@/lib/ocr/extract";
 import { profileWorkbook } from "@/lib/excel/profile";
 import { saveDataset } from "@/lib/store/datasets";
 import { createLogger } from "@/lib/logger";
@@ -13,6 +12,20 @@ const log = createLogger("api/screenshot");
 const MAX_FILES = 6;
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB each
 const ALLOWED_EXT = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"];
+
+// Map an uploaded file to the media type Claude's vision API expects. Anthropic
+// supports png/jpeg/webp/gif; bmp is converted by falling back to png labelling
+// only if the browser already provided a supported type.
+function mediaTypeFor(file: File): string {
+  const t = (file.type || "").toLowerCase();
+  if (["image/png", "image/jpeg", "image/webp", "image/gif"].includes(t)) return t;
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".gif")) return "image/gif";
+  return "image/png";
+}
 
 export async function POST(req: Request): Promise<Response> {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -51,26 +64,33 @@ export async function POST(req: Request): Promise<Response> {
   log.info("Screenshot upload received", { count: files.length, names: files.map((f) => f.name) });
 
   try {
-    const images = await Promise.all(
-      files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) })),
+    const images: ScreenshotImage[] = await Promise.all(
+      files.map(async (f) => ({
+        name: f.name,
+        bytes: new Uint8Array(await f.arrayBuffer()),
+        mediaType: mediaTypeFor(f),
+      })),
     );
 
-    // 1) OCR each image.
-    const ocrResults = await ocrImages(images);
-    const totalChars = ocrResults.reduce((n, r) => n + r.text.length, 0);
-    if (totalChars < 5) {
-      log.warn("OCR found almost no text", { totalChars });
+    // Structure the screenshots into a dataset using Claude vision. Claude
+    // reads the images directly (no separate OCR step), which is fast and
+    // reliable on serverless and avoids the WASM-OCR timeouts that caused 504s.
+    const extraction = await extractStructuredData(images);
+
+    const hasTables = Object.keys(extraction.tables).length > 0;
+    const hasContent =
+      hasTables ||
+      extraction.perImage.some((i) => i.charts.length > 0 || i.kpis.length > 0);
+    if (!hasContent) {
+      log.warn("No structured content extracted from screenshots");
       return NextResponse.json(
         {
           error:
-            "OCR found little or no readable text. Try a sharper, higher-resolution screenshot.",
+            "Could not read any tables, charts, or KPIs from these screenshots. Try a sharper, higher-resolution image.",
         },
         { status: 422 },
       );
     }
-
-    // 2) Structure OCR text into a dataset via Claude.
-    const extraction = await extractStructuredData(ocrResults);
 
     // 3) Profile the extracted tables into a data dictionary.
     const fileName =

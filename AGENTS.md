@@ -227,46 +227,36 @@ permissions, so review before executing anything they instruct.
   top-N, conversational follow-ups, 7-part output. v2 (later) = forecasting,
   anomaly detection, root-cause, KPI presets, real chart rendering.
 
-### Screenshot Analysis Tool — architecture (v1)
+### Screenshot Analysis Tool — architecture (v2: Claude vision)
 
-- **Second universal tool.** Converts screenshots → structured data via OCR, then
-  reuses the SAME `analyzeData` sandbox tool + dataset store + report patterns.
-- **Engine = Tesseract OCR + Claude (NOT vision).** `tesseract.js@7` (WASM, no
-  native build) reads text; Claude structures the OCR text into a dataset. Charts
-  are read as TEXT only — chart-shape geometry (unlabelled lines/bars) is out of
-  scope and the agent flags it. v2 path: add the image as a vision part.
-- **Pipeline:** `lib/ocr/preprocess.ts` (sharp: grayscale/upscale/normalize) →
-  `lib/ocr/ocr.ts` (cached Tesseract worker) → `lib/ocr/extract.ts` (Claude
-  `generateText` + `Output.object`/zod → tables + chart/KPI metadata + limitations)
-  → reuse `excel/profile.ts` → store with `source: "screenshot"` + `extraction`.
-- **tesseract.js + Next.js gotchas (important):**
-  - Add `serverExternalPackages: ["tesseract.js","sharp"]` in `next.config.ts` so
-    the bundler doesn't rewrite their internal paths.
-  - Pass explicit `workerPath`/`corePath`/`cachePath` to `createWorker`, resolved
-    from `process.cwd()/node_modules` (NOT `import.meta.url` — that mis-resolves
-    under the bundle and caused a `path must be string, received number` error).
-  - Pass a FILE PATH to `worker.recognize()` (write the preprocessed image to a
-    temp file), not a Buffer — Buffer input triggered the same path error.
-  - First OCR run downloads `eng.traineddata` (cached in `.tesseract-cache/`,
-    gitignored). Worker is cached on globalThis across requests/hot-reloads.
-  - **Serverless (Vercel) cache path:** the deployment FS is read-only except the
-    OS temp dir, so `resolvePaths()` puts the lang-data cache in
-    `os.tmpdir()/tesseract-cache` when `VERCEL`/`AWS_LAMBDA_FUNCTION_NAME` is set
-    (project-local `.tesseract-cache/` only locally). `getWorker()` `mkdir -p`s
-    the cache dir first and clears the cached promise on failure so a later
-    request can retry.
-  - **Bundle tracing:** because tesseract.js/sharp are in
-    `serverExternalPackages`, Next doesn't analyze their internal requires, so
-    Vercel's file tracer can miss the worker script/wasm/native libs. Added
-    `outputFileTracingIncludes` in `next.config.ts` for `/api/screenshot` (+
-    `/api/screenshot-chat`) covering `tesseract.js`, `tesseract.js-core`, `sharp`,
-    `@img`.
-  - **Client never JSON.parses a crash page:** a hard serverless failure
-    (timeout/OOM) returns a plain-text page ("An error o…"), which broke the
-    client's `res.json()` ("Unexpected token 'A'… is not valid JSON"). The
-    screenshot page now reads the body as text and only `JSON.parse`s in a
-    try/catch, surfacing a real message instead.
-- **Routes:** `app/api/screenshot/route.ts` (multi-file OCR→extract→store, max 6
+- **Second universal tool.** Converts screenshots → structured data, then reuses
+  the SAME `analyzeData` sandbox tool + dataset store + report patterns.
+- **Engine = Claude vision (NO OCR).** `lib/ocr/extract.ts` sends the raw image
+  bytes directly to Claude as `{ type: "image", image, mediaType }` message parts
+  via `generateText` + `Output.object`/zod → tables + chart/KPI metadata +
+  per-image read confidence + limitations. No Tesseract, no `sharp`, no temp
+  files, no WASM/lang-data download. This is what fixed the Vercel **504 timeout**
+  (heavy WASM OCR couldn't fit the serverless time/CPU budget). Vision also reads
+  chart values (not "text only" like the old OCR).
+- **Pipeline:** `app/api/screenshot/route.ts` (read File bytes + map media type) →
+  `lib/ocr/extract.ts` (Claude vision → tables + metadata) → reuse
+  `excel/profile.ts` → store with `source: "screenshot"` + `extraction`.
+- **`mediaType` mapping:** Anthropic vision accepts png/jpeg/webp/gif. The route's
+  `mediaTypeFor()` maps each upload from its MIME/extension; bmp is labelled png as
+  a best-effort fallback.
+- **Compatibility:** the `ScreenshotImageExtraction.ocrConfidence` field is kept
+  (UI/store) but now holds the vision model's self-reported read confidence 0-100.
+- **History:** v1 used Tesseract OCR (`tesseract.js`) + `sharp` preprocessing
+  (`lib/ocr/ocr.ts`, `lib/ocr/preprocess.ts`). Those files remain but are
+  **unused** (no imports). Removed the related `serverExternalPackages` /
+  `outputFileTracingIncludes` from `next.config.ts`. If you ever delete them, also
+  drop the `tesseract.js`/`sharp` deps.
+- **Client never JSON.parses a crash page:** a hard serverless failure
+  (timeout/OOM) returns a plain-text page ("An error o…"), which broke the
+  client's `res.json()` ("Unexpected token 'A'… is not valid JSON"). The
+  screenshot page reads the body as text and only `JSON.parse`s in a try/catch,
+  surfacing a real message instead.
+- **Routes:** `app/api/screenshot/route.ts` (multi-file vision→extract→store, max 6
   images/10MB), `app/api/screenshot-chat/route.ts` (screenshot agent). Agent in
   `lib/agents/screenshot-agent.ts`. Output = 6-part format (Direct Answer · Key
   Findings · Supporting Evidence · Insights · Business Impact · Recommended Actions).

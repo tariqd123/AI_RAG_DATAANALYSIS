@@ -75,11 +75,11 @@ function buildInstructions(dictionary: DataDictionary, extraction: ScreenshotExt
     })
     .join("\n\n");
 
-  return `You are a senior data analyst. You answer business questions about data EXTRACTED FROM SCREENSHOTS via OCR.
+  return `You are a senior data analyst. You answer business questions about data EXTRACTED FROM SCREENSHOTS read by an AI vision model.
 
 # Important about the source
-- The data came from OCR on screenshots (Excel, dashboards, Power BI/Tableau, PDFs, reports, web apps). OCR can misread characters; treat values as approximate when OCR confidence is low.
-- Charts were read as TEXT only. You can use printed axis labels, legends, and numeric data labels, but you CANNOT see chart shapes (line slopes, bar heights) when values are not labelled. When a chart lacks numeric labels, say the exact magnitudes are unknown.
+- The data was read from screenshots (Excel, dashboards, Power BI/Tableau, PDFs, reports, web apps) by a vision model. Readings can be imperfect; treat values as approximate when the per-image read confidence is low.
+- Chart values were read directly from the images, including printed data labels and (where legible) values estimated from axes. When a chart value was not clearly readable, the extraction notes it — flag such magnitudes as uncertain.
 - These known limitations apply: ${extraction.limitations || "none reported"}
 
 # How you work
