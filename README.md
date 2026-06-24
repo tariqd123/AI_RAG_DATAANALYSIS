@@ -126,15 +126,19 @@ by `proxy.ts`).
 ## Project structure
 
 ```
+proxy.ts                   # auth guard (Next 16 "Proxy", formerly Middleware)
 app/
   page.tsx                 # landing page
+  login/page.tsx           # password login
   excel/page.tsx           # Excel analysis UI
   screenshot/page.tsx      # Screenshot analysis UI
-  components/MenuBar.tsx    # shared top navigation
+  components/MenuBar.tsx    # shared top navigation + log out
   api/
+    auth/login/route.ts     auth/logout/route.ts
     upload/route.ts         chat/route.ts
     screenshot/route.ts     screenshot-chat/route.ts
 lib/
+  auth.ts                  # signed (HMAC) session cookie via Web Crypto
   agents/                  # analyst-agent.ts, screenshot-agent.ts (1 tool each)
   tools/analyze-data.ts    # the single universal analysis tool
   analysis/                # sandbox.ts (worker+vm) + helpers
@@ -143,6 +147,30 @@ lib/
   store/datasets.ts        # in-memory dataset store (TTL 1h)
   markdown.ts  logger.ts  types.ts
 ```
+
+## Deployment (Vercel)
+
+Set these environment variables in **Project → Settings → Environment
+Variables** (for Production, Preview, and Development) — they are read from
+`.env.local` locally and are **not** committed, so the hosted app needs them
+explicitly:
+
+| Variable            | Notes                                            |
+| ------------------- | ------------------------------------------------ |
+| `ANTHROPIC_API_KEY` | Your Anthropic key                               |
+| `APP_PASSWORD`      | The shared access password                       |
+| `AUTH_SECRET`       | Long random string used to sign the session cookie |
+
+After adding or changing variables you must **redeploy** — env changes do not
+apply to existing deployments. (A missing `APP_PASSWORD`/`AUTH_SECRET` is what
+produces the "Auth is not configured on the server" message.)
+
+> **Serverless caveats:** on Vercel's serverless runtime the **in-memory dataset
+> store does not persist between invocations**, and the **screenshot OCR tool**
+> (`tesseract.js` + `sharp`, which download data and write temp files) may fail
+> or time out. The Excel tool and authentication work, but for reliable
+> production use of both tools, run on a long-lived server/container and back the
+> dataset store with durable storage (KV/Redis/DB).
 
 ## Notes & limitations
 
